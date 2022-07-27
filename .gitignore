@@ -1,0 +1,46 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+*.bak
+src/output/*
+
+# Distribution / packaging
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+
+
+
+
+
+# Sphinx documentation
+docs/_build/
+
+
+
+
+
+# Pycharm
+.idea
+
+
+
+# Jupyter NB Checkpoints
+.ipynb_checkpoints/
+
+
