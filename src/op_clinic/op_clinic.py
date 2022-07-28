@@ -209,7 +209,7 @@ class OutpatientClinic(object):
         # Patient arrives to clinic - note the arrival time
         arrival_ts = self.env.now
 
-        # Request a med tech for vitals check
+        # Request a med tech for vitals check at separate vitals check station
         # By using request() in a context manager, we'll automatically release the resource when done
         with self.med_tech.request() as request:
             request_med_tech_vitals_ts = self.env.now
@@ -481,6 +481,96 @@ def summarize_patient_log(patient_log_df, scenario, performance_measures):
     return patient_log_stats
 
 
+def create_configs_from_inputs_csv(exp, scenarios_csv_file_path, config_path,
+                                   run_script_path):
+    """
+    Create one simulation configuration file per scenario.
+
+    Parameters
+    ----------
+    exp : str, experiment identifier
+    scenarios_csv_file_path : str or Path, simulation scenario input csv file
+    simulation_settings_path : str or Path, YAML file with simulation settings
+    config_path : str or Path, destination for scenario specific config files
+    run_script_path : str or Path, destination for shell scripts for running simulation scenarios
+    update_check_rho : bool (Default=False), if True, recompute rho check values. Set to True if manual capacity levels set.
+
+    Returns
+    -------
+    No return value
+    """
+
+    # Read scenarios file in DataFrame
+    scenarios_df = pd.read_csv(scenarios_csv_file_path)
+
+    global_vars = {}
+    run_script_file_path = Path(run_script_path, f'{exp}_run.sh')
+    with open(run_script_file_path, 'w') as bat_file:
+        # Iterate over rows in scenarios file
+        for row in scenarios_df.iterrows():
+            scenario = int(row[1]['scenario'].tolist())
+
+            global_vars['arrival_rate'] = row[1]['arrival_rate'].tolist()
+
+            global_vars['mean_los_obs'] = row[1]['mean_los_obs'].tolist()
+            global_vars['num_erlang_stages_obs'] = int(row[1]['num_erlang_stages_obs'])
+
+            global_vars['mean_los_ldr'] = float(row[1]['mean_los_ldr'])
+            global_vars['num_erlang_stages_ldr'] = int(row[1]['num_erlang_stages_ldr'])
+
+            global_vars['mean_los_pp_noc'] = float(row[1]['mean_los_pp_noc'])
+            global_vars['mean_los_pp_c'] = float(row[1]['mean_los_pp_c'])
+            global_vars['num_erlang_stages_pp'] = int(row[1]['num_erlang_stages_pp'])
+
+            global_vars['mean_los_csect'] = float(row[1]['mean_los_csect'])
+            global_vars['num_erlang_stages_csect'] = int(row[1]['num_erlang_stages_csect'])
+
+            global_vars['c_sect_prob'] = float(row[1]['c_sect_prob'])
+
+            config = {}
+            config['locations'] = settings['locations']
+            cap_obs = int(row[1]['cap_obs'].tolist())
+            cap_ldr = int(row[1]['cap_ldr'].tolist())
+            cap_pp = int(row[1]['cap_pp'].tolist())
+            config['locations'][1]['capacity'] = cap_obs
+            config['locations'][2]['capacity'] = cap_ldr
+            config['locations'][4]['capacity'] = cap_pp
+
+            # Write scenario config file
+
+            config['scenario'] = scenario
+            config['run_settings'] = settings['run_settings']
+            config['output'] = settings['output']
+            config['random_number_streams'] = settings['random_number_streams']
+
+            config['routes'] = settings['routes']
+            config['global_vars'] = global_vars
+
+            config_file_path = Path(config_path) / f'{exp}_scenario_{scenario}.yaml'
+
+            with open(config_file_path, 'w', encoding='utf-8') as config_file:
+                yaml.dump(config, config_file)
+
+            run_line = f"obflow_sim {config_file_path} --loglevel=WARNING\n"
+            bat_file.write(run_line)
+
+        # Create output file processing line
+        # output_proc_line = f'python obflow_stat.py {output_path_} {exp_suffix_} '
+        # output_proc_line += f"--run_time {settings['run_settings']['run_time']} "
+        # output_proc_line += f"--warmup_time {settings['run_settings']['warmup_time']} --include_inputs "
+        # output_proc_line += f"--scenario_inputs_path {scenarios_csv_path_} --process_logs "
+        # output_proc_line += f"--stop_log_path {settings['paths']['stop_logs']} "
+        # output_proc_line += f"--occ_stats_path {settings['paths']['occ_stats']}"
+        # bat_file.write(output_proc_line)
+
+
+            # Rewrite scenarios input file with updated rho_checks
+            scenarios_df.to_csv(scenarios_csv_file_path, index=False)
+
+    print(f'Config files written to {Path(config_path)}')
+    return run_script_file_path
+
+
 def process_command_line():
     """
     Parse command line arguments
@@ -523,7 +613,6 @@ def process_command_line():
 
     parser.add_argument("--num_physicians", default=15, help="number of physicians",
                         type=int)
-
 
     parser.add_argument("--vitals_time_mean", default=6.0,
                         help="Mean time (mins) for taking vital signs",
@@ -598,24 +687,20 @@ def main():
     num_reps = args.num_reps
     scenario = args.scenario
 
-    if len(args.output_path) > 0:
-        output_dir = Path.cwd() / args.output_path
-    else:
-        output_dir = Path.cwd()
-
     # Main simulation replication loop
     for i in range(1, num_reps + 1):
         simulate(vars(args), i)
 
     # Consolidate the patient logs and compute summary stats
     performance_measures = ['init_wait_med_tech', 'wait_for_physician', 'time_in_system', 'exit_system_ts']
-    patient_log_stats = process_sim_output(output_dir, scenario, performance_measures)
+    patient_log_stats = process_sim_output(args.output_path, scenario, performance_measures)
     print(f"\nScenario: {scenario}")
     pd.set_option("display.precision", 3)
     pd.set_option('display.max_columns', None)
     pd.set_option('display.width', 120)
     #print(patient_log_stats['patient_log_rep_stats'])
-    print(patient_log_stats['patient_log_ci'])
+    summary_stats = patient_log_stats['patient_log_ci']
+    print(summary_stats)
 
 
 if __name__ == '__main__':
