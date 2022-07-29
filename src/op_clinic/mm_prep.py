@@ -36,7 +36,10 @@ def offered_util(row, resource):
 def make_xy_files(input_scenarios_filepath, mm_summary_filepath, xy_path):
 
     scenarios_df = pd.read_csv(input_scenarios_filepath)
-    scenarios_df['exam_time_cv'] = 1 / np.sqrt(scenarios_df['exam_time_k'])
+    scenarios_df['vitals_time_cv2'] = 1 / (scenarios_df['vitals_time_k'])
+    scenarios_df['exam_time_cv2'] = 1 / (scenarios_df['exam_time_k'])
+    scenarios_df['post_exam_time_cv2'] = 1 / (scenarios_df['post_exam_time_k'])
+    scenarios_df['room_turnover_time_cv2'] = 1 / (scenarios_df['room_turnover_time_k'])
     scenarios_df['off_util_staff'] = scenarios_df.apply(lambda x: offered_util(x, 'staff'), axis=1)
     scenarios_df['off_util_physician'] = scenarios_df.apply(lambda x: offered_util(x, 'physician'), axis=1)
     scenarios_df['off_util_room'] = scenarios_df.apply(lambda x: offered_util(x, 'room'), axis=1)
@@ -46,11 +49,10 @@ def make_xy_files(input_scenarios_filepath, mm_summary_filepath, xy_path):
     full_df = scenarios_df.merge(summary_stats_df, on='scenario')
 
     x_no_util_cols = ['patients_per_clinic_block', 'num_med_techs', 'num_rooms_per_provider',
-                      'vitals_time_mean', 'exam_time_mean', 'exam_time_cv', 'post_exam_time_mean']
+                      'vitals_time_mean', 'vitals_time_cv2', 'exam_time_mean', 'exam_time_cv2',
+                      'post_exam_time_mean', 'post_exam_time_cv2', 'room_turnover_time_mean', 'room_turnover_time_cv2']
 
-    x_util_cols = ['patients_per_clinic_block', 'num_med_techs', 'num_rooms_per_provider',
-                   'vitals_time_mean', 'exam_time_mean', 'exam_time_cv', 'post_exam_time_mean',
-                   'off_util_staff', 'off_util_physician', 'off_util_room']
+    x_util_cols = x_no_util_cols + ['off_util_staff', 'off_util_physician', 'off_util_room']
 
     xy_no_util_cols_waiti = x_no_util_cols + ['mean_waiti']
     xy_no_util_cols_waitp = x_no_util_cols + ['mean_waitp']
