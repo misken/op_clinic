@@ -199,7 +199,7 @@ def create_configs_from_inputs_csv(exp, scenarios_csv_file_path, config_path, ru
                     param_line = f"--{index} {value}\n"
                     config_file.write(param_line)
 
-            run_line = f"python op_clinic.py {config_file_path}\n"
+            run_line = f"python op_clinic.py --config {config_file_path}\n"
             bat_file.write(run_line)
 
 

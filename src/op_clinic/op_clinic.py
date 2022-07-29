@@ -6,6 +6,7 @@ import argparse
 import math
 import logging
 from datetime import datetime
+import csv
 
 import pandas as pd
 from numpy.random import default_rng
@@ -397,7 +398,7 @@ def process_sim_output(csvs_path, scenario, performance_measures):
     'patient_log_ci' -->        Contains dictionaries with overall stats and CIs. Keys are perf measures.
     """
 
-    dest_path = csvs_path / f"consolidated_clinic_patient_log_{scenario}.csv"
+    dest_path = Path(csvs_path) / Path(f"consolidated_clinic_patient_log_{scenario}.csv")
 
     sort_keys = ['scenario', 'rep_num']
 
@@ -405,7 +406,7 @@ def process_sim_output(csvs_path, scenario, performance_measures):
     dfs = {}
 
     # Loop over all the csv files
-    for csv_f in csvs_path.glob('clinic_patient_log_*.csv'):
+    for csv_f in Path(csvs_path).glob('clinic_patient_log_*.csv'):
         # Split the filename off from csv extension. We'll use the filename
         # (without the extension) as the key in the dfs dict.
         fstem = csv_f.stem
@@ -673,6 +674,8 @@ def main():
     args = process_command_line()
     print(args)
 
+    output_summary_path = Path(args.output_path) / Path("summary_stats.csv")
+
     # Quick setup of root logger
     logging.basicConfig(
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -693,7 +696,7 @@ def main():
 
     # Consolidate the patient logs and compute summary stats
     performance_measures = ['init_wait_med_tech', 'wait_for_physician', 'time_in_system', 'exit_system_ts']
-    patient_log_stats = process_sim_output(args.output_path, scenario, performance_measures)
+    patient_log_stats = process_sim_output(Path(args.output_path), scenario, performance_measures)
     print(f"\nScenario: {scenario}")
     pd.set_option("display.precision", 3)
     pd.set_option('display.max_columns', None)
@@ -701,6 +704,18 @@ def main():
     #print(patient_log_stats['patient_log_rep_stats'])
     summary_stats = patient_log_stats['patient_log_ci']
     print(summary_stats)
+
+    mean_waiti = summary_stats.loc['mean_mean', 'init_wait_med_tech']
+    mean_waitp = summary_stats.loc['mean_mean', 'wait_for_physician']
+    mean_time_in_system = summary_stats.loc['mean_mean', 'time_in_system']
+    mean_eod = summary_stats.loc['mean_max', 'exit_system_ts']
+
+    scenario_results = [scenario, mean_waiti, mean_waitp, mean_time_in_system, mean_eod]
+
+    with open(output_summary_path, "a") as fout:
+        writer = csv.writer(fout)
+        writer.writerow(scenario_results)
+
 
 
 if __name__ == '__main__':
